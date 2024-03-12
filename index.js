@@ -46,7 +46,7 @@ const generateId = () => {
 // })
 
 app.get("/", (req, resp) => {
-  resp.send('<h1>Hello there, im Danny</h1>');
+  resp.send('<h1>Hello there, this is a notes app, created with react and deployed in render</h1>');
 });
 
 app.get("/api/notes", (req, resp) => {
