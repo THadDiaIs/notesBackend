@@ -1,9 +1,40 @@
+require('dotenv').config();
 const express = require("express");
+const mongoose = require('mongoose');
+const cors = require("cors");
+const morgan = require('morgan');
+
 const app = express();
 app.use(express.json());
-const cors = require("cors");
 app.use(cors());
-app.use(express.static('dist'))
+app.use(express.static('dist'));
+
+morgan.token('req-content', req => req.body ? JSON.stringify(req.body) : " ");
+app.use(morgan(":method :url :status :res[content-length] - :response-time ms :req-content"));
+
+const password = encodeURIComponent(process.argv[2]);
+
+// DO NOT SAVE YOUR PASSWORD TO GITHUB!!
+// const url = `mongodb+srv://sdia7sdia:${password}@dnn0.k280uaz.mongodb.net/noteApp?retryWrites=true&w=majority&appName=Dnn0`
+//
+// mongoose.set('strictQuery',false)
+// mongoose.connect(url)
+//
+// const noteSchema = new mongoose.Schema({
+//   content: String,
+//   important: Boolean,
+// })
+//
+// noteSchema.set('toJSON', {
+//   transform: (document, returnedObject) => {
+//     returnedObject.id = returnedObject._id.toString()
+//     delete returnedObject._id
+//     delete returnedObject.__v
+//   }
+// })
+
+// const Note = mongoose.model('Note', noteSchema)
+const Note = require('./models/note')
 
 let notes = [
   {
@@ -50,17 +81,22 @@ app.get("/", (req, resp) => {
 });
 
 app.get("/api/notes", (req, resp) => {
-  resp.json(notes);
+  Note.find({}).then(notes => {
+    resp.json(notes);
+  })
 });
 
 app.get("/api/notes/:id", (req, resp) => {
-  const id = Number(req.params.id);
-  const note = notes.find(note => note.id === id);
-  if (note) {
-    resp.json(note);
-  } else {
-    resp.status(404).end();
-  }
+  // const id = Number(req.params.id);
+  // const note = notes.find(note => note.id === id);
+  // if (note) {
+  //   resp.json(note);
+  // } else {
+  //   resp.status(404).end();
+  // }
+  Note.findById(req.params.id).then(note => {
+    response.json(note);
+  });
 });
 
 app.delete("/api/notes/:id", (req, resp) => {
@@ -72,24 +108,28 @@ app.delete("/api/notes/:id", (req, resp) => {
 
 app.post("/api/notes", (req,resp)=> {
   const body = req.body;
+
+  // if (body.content === undefined) {
+  //   return response.status(400).json({ error: 'content missing' })
+  // }
+
   if (!body.content){
-    return response.status(400).json({error: "content missing"})
+    return resp.status(400).json({error: "content missing"})
   }
 
-  const note = {
+  const note = new Note({
     content: body.content,
     important: body.important || false,
+    /*
     date: new Date(),
-    id: generateId(),
-  }
+    id: generateId(),*/
+  })
 
-  notes = notes.concat(note);
-
-  resp.json(note)
+  note.save().then(savedNote => {resp.json(savedNote)});
 })
 
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
