@@ -3,38 +3,16 @@ const express = require("express");
 const mongoose = require('mongoose');
 const cors = require("cors");
 const morgan = require('morgan');
+const Note = require('./models/note')
+morgan.token('req-content', req => req.body ? JSON.stringify(req.body) : " ");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 app.use(express.static('dist'));
-
-morgan.token('req-content', req => req.body ? JSON.stringify(req.body) : " ");
 app.use(morgan(":method :url :status :res[content-length] - :response-time ms :req-content"));
 
 const password = encodeURIComponent(process.argv[2]);
-
-// DO NOT SAVE YOUR PASSWORD TO GITHUB!!
-// const url = `mongodb+srv://sdia7sdia:${password}@dnn0.k280uaz.mongodb.net/noteApp?retryWrites=true&w=majority&appName=Dnn0`
-//
-// mongoose.set('strictQuery',false)
-// mongoose.connect(url)
-//
-// const noteSchema = new mongoose.Schema({
-//   content: String,
-//   important: Boolean,
-// })
-//
-// noteSchema.set('toJSON', {
-//   transform: (document, returnedObject) => {
-//     returnedObject.id = returnedObject._id.toString()
-//     delete returnedObject._id
-//     delete returnedObject.__v
-//   }
-// })
-
-// const Note = mongoose.model('Note', noteSchema)
-const Note = require('./models/note')
 
 let notes = [
   {
@@ -64,21 +42,11 @@ let notes = [
 
 const generateId = () => {
   const maxId = notes.length > 0
-    ? Math.max(...notes.map(n => n.id))
-    : 0;
+  ? Math.max(...notes.map(n => n.id))
+  : 0;
 
   return maxId +1;
 }
-
-// app.post("/api/notes", (req, res) => {
-//   const note = req.body;
-//   console.log(note);
-//   res.json(note);
-// })
-
-app.get("/", (req, resp) => {
-  resp.send('<h1>Hello there, this is a notes app, created with react and deployed in render</h1>');
-});
 
 app.get("/api/notes", (req, resp) => {
   Note.find({}).then(notes => {
@@ -86,24 +54,24 @@ app.get("/api/notes", (req, resp) => {
   })
 });
 
-app.get("/api/notes/:id", (req, resp) => {
-  // const id = Number(req.params.id);
-  // const note = notes.find(note => note.id === id);
-  // if (note) {
-  //   resp.json(note);
-  // } else {
-  //   resp.status(404).end();
-  // }
-  Note.findById(req.params.id).then(note => {
-    response.json(note);
-  });
+app.get("/api/notes/:id", (req, resp, next) => {
+  Note.findById(req.params.id)
+  .then(note => {
+    if (note) {
+      resp.json(note);
+    } else {
+      resp.status(404).end();
+    }
+  })
+  .catch(error => next(error));
 });
 
-app.delete("/api/notes/:id", (req, resp) => {
-  const id = Number(req.params.id);
-  notes = notes.filter(note => note.id !== id);
-
-  resp.status(204).end();
+app.delete("/api/notes/:id", (req, resp, next) => {
+  Note.findByIdAndDelete(req.params.id)
+  .then(result => {
+    resp.status(204).end();
+  })
+  .catch(error => next(error));
 });
 
 app.post("/api/notes", (req,resp)=> {
@@ -121,12 +89,45 @@ app.post("/api/notes", (req,resp)=> {
     content: body.content,
     important: body.important || false,
     /*
-    date: new Date(),
-    id: generateId(),*/
+     *    date: new Date(),
+     *    id: generateId(),*/
   })
 
   note.save().then(savedNote => {resp.json(savedNote)});
 })
+
+app.put("/api/notes/:id", (req, resp, next) => {
+  const {content, important} = req.body;
+  const note = {
+    content,
+    important
+  };
+
+  Note.findByIdAndUpdate(req.params.id, note, {new : true})
+  .then(updatedNote => {
+    resp.json(updatedNote)
+  })
+  .catch(error => next(error));
+});
+
+
+const unknownEndpoint = (req, resp) => {
+  resp.status(404).send({ error: 'unknown endpoint' })
+}
+
+app.use(unknownEndpoint)
+
+const errorHandler = (error, req, resp, next) => {
+  console.log(error.message);
+
+  if (error.name == 'CastError'){
+    return resp.status(400).send({error: 'malformatted id'});
+  }
+
+  next(error)
+}
+
+app.use(errorHandler)
 
 
 const PORT = process.env.PORT
