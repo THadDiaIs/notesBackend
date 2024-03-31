@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require("express");
-const mongoose = require('mongoose');
+//const mongoose = require('mongoose');
 const cors = require("cors");
 const morgan = require('morgan');
 const Note = require('./models/note')
@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.static('dist'));
 app.use(morgan(":method :url :status :res[content-length] - :response-time ms :req-content"));
 
-const password = encodeURIComponent(process.argv[2]);
+//const password = encodeURIComponent(process.argv[2]);
 
 let notes = [
   {
@@ -74,16 +74,16 @@ app.delete("/api/notes/:id", (req, resp, next) => {
   .catch(error => next(error));
 });
 
-app.post("/api/notes", (req,resp)=> {
+app.post("/api/notes", (req, resp, next)=> {
   const body = req.body;
 
   // if (body.content === undefined) {
   //   return response.status(400).json({ error: 'content missing' })
   // }
 
-  if (!body.content){
-    return resp.status(400).json({error: "content missing"})
-  }
+  // if (!body.content){
+  //   return resp.status(400).json({error: "content missing"})
+  // }
 
   const note = new Note({
     content: body.content,
@@ -93,17 +93,18 @@ app.post("/api/notes", (req,resp)=> {
      *    id: generateId(),*/
   })
 
-  note.save().then(savedNote => {resp.json(savedNote)});
+  note.save()
+    .then(savedNote => {resp.json(savedNote)})
+    .catch(error => next(error));
 })
 
 app.put("/api/notes/:id", (req, resp, next) => {
   const {content, important} = req.body;
-  const note = {
-    content,
-    important
-  };
 
-  Note.findByIdAndUpdate(req.params.id, note, {new : true})
+  Note.findByIdAndUpdate(
+    req.params.id,
+    {content, important},
+    {new : true, runValidators: true, context: 'query'})
   .then(updatedNote => {
     resp.json(updatedNote)
   })
@@ -120,8 +121,10 @@ app.use(unknownEndpoint)
 const errorHandler = (error, req, resp, next) => {
   console.log(error.message);
 
-  if (error.name == 'CastError'){
+  if (error.name === 'CastError'){
     return resp.status(400).send({error: 'malformatted id'});
+  } else if (error.name === 'ValidationError'){
+    return resp.status(400).json({ error: error.message});
   }
 
   next(error)
